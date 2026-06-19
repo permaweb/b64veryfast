@@ -17,23 +17,23 @@ BOTTOM = 82
 
 SERIES = [
     ("standard", "otp-base64", "OTP base64", {
-        "encode": ("#4b5563", ""),
-        "decode": ("#cbd5e1", ""),
+        "encode": ("#4b5563", "", 2.1),
+        "decode": ("#cbd5e1", "", 2.1),
     }),
     ("standard", "b64fast", "Original b64fast", {
-        "encode": ("#b45309", ""),
-        "decode": ("#fbbf24", ""),
+        "encode": ("#8c6d31", "", 2.1),
+        "decode": ("#d8b365", "", 2.1),
     }),
     ("base64url", "b64rs", "b64rs url", {
-        "encode": ("#1d4ed8", ""),
-        "decode": ("#93c5fd", ""),
+        "encode": ("#2166ac", "", 2.1),
+        "decode": ("#92c5de", "", 2.1),
     }),
     ("standard", "b64veryfast", "b64veryfast", {
-        "encode": ("#047857", ""),
-        "decode": ("#86efac", ""),
+        "encode": ("#b2182b", "", 3.1),
+        "decode": ("#ef8a62", "", 3.1),
     }),
     ("standard", "b64veryfast-trusted", "b64veryfast trusted", {
-        "decode": ("#14b8a6", ' stroke-dasharray="6 4"'),
+        "decode": ("#d6604d", ' stroke-dasharray="6 4"', 3.1),
     }),
 ]
 
@@ -142,7 +142,7 @@ def nice_y_ticks(y_min, y_max):
 def collect_series(summary, rows):
     combined = []
     for family, library, label, operations in SERIES:
-        for operation, (color, dash) in operations.items():
+        for operation, (color, dash, width) in operations.items():
             points = []
             for (fam, lib, op, size), vals in summary.items():
                 if fam == family and lib == library and op == operation:
@@ -157,6 +157,7 @@ def collect_series(summary, rows):
                     "operation": operation,
                     "color": color,
                     "dash": dash,
+                    "width": width,
                     "points": sorted(points, key=lambda item: item["size"]),
                     "run_points": sorted(run_points, key=lambda item: (item["size_bytes"], item["run"])),
                 })
@@ -174,7 +175,7 @@ def svg_chart(summary, rows, out_path):
     xmap = scale_log(x_min, x_max, LEFT, WIDTH - RIGHT)
     ymap = scale_linear(y_min, y_max, HEIGHT - BOTTOM, TOP)
 
-    x_ticks = [16, 64, 256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304]
+    x_ticks = [16, 64, 256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216]
     x_ticks = [tick for tick in x_ticks if x_min <= tick <= x_max]
     y_ticks = nice_y_ticks(y_min, y_max)
 
@@ -214,28 +215,30 @@ def svg_chart(summary, rows, out_path):
     legend_x = WIDTH - RIGHT + 28
     legend_y = TOP + 8
     legend_rows = [
-        (item["label"], item["operation"], item["color"], item["dash"])
+        (item["label"], item["operation"], item["color"], item["dash"], item["width"])
         for item in series
     ]
-    for i, (label, operation, color, dash) in enumerate(legend_rows):
+    for i, (label, operation, color, dash, width) in enumerate(legend_rows):
         y = legend_y + i * 24
-        lines.append(f'<line x1="{legend_x}" y1="{y}" x2="{legend_x + 24}" y2="{y}" stroke="{color}" stroke-width="3" stroke-linecap="round"{dash}/>')
+        lines.append(f'<line x1="{legend_x}" y1="{y}" x2="{legend_x + 24}" y2="{y}" stroke="{color}" stroke-width="{width}" stroke-linecap="round"{dash}/>')
         lines.append(f'<text class="legend" x="{legend_x + 34}" y="{y + 4}">{escape(label)} {operation}</text>')
 
     for item in series:
         for point in item["run_points"]:
             jitter = (point["run"] - 3) * 1.6
+            radius = 2.2 if item["width"] > 3 else 1.7
+            opacity = 0.20 if item["width"] > 3 else 0.16
             lines.append(
                 f'<circle cx="{xmap(point["size_bytes"]) + jitter:.2f}" '
-                f'cy="{ymap(point["mib_per_s"]):.2f}" r="2.2" '
-                f'fill="{item["color"]}" opacity="0.32"/>'
+                f'cy="{ymap(point["mib_per_s"]):.2f}" r="{radius}" '
+                f'fill="{item["color"]}" opacity="{opacity}"/>'
             )
 
     for item in series:
         if len(item["points"]) >= 2:
             lines.append(
                 f'<path d="{path_for(item["points"], xmap, ymap, "median")}" fill="none" '
-                f'stroke="{item["color"]}" stroke-width="2.8" '
+                f'stroke="{item["color"]}" stroke-width="{item["width"]}" '
                 f'stroke-linejoin="round" stroke-linecap="round"{item["dash"]}/>'
             )
 

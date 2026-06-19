@@ -7,9 +7,9 @@ The short version: this is a thin, binary-only Erlang NIF over the
 SIMD-oriented [`aklomp/base64`](https://github.com/aklomp/base64) C backend.
 The NIF reads Erlang input binaries without copying, allocates the exact output
 binary once, writes directly into that new binary, and schedules large calls on
-dirty CPU schedulers. On this Apple arm64 benchmark host it reaches about
-24 GiB/s encode, 11.5 GiB/s checked decode, and 12.6 GiB/s trusted decode for
-1 MiB binaries.
+dirty CPU schedulers. On this Apple arm64 benchmark host, the dense sweep below
+peaks at about 24 GiB/s encode, 12.5 GiB/s checked decode, and 13.9 GiB/s
+trusted decode.
 
 This project is forked from
 [`zuckschwerdt/b64fast`](https://github.com/zuckschwerdt/b64fast). Credit to
@@ -23,13 +23,14 @@ These benchmarks measure end-to-end Erlang calls, including the NIF boundary,
 input inspection, output allocation, and C codec execution. They are not raw C
 kernel-only numbers.
 
-The plotted sweep uses 37 approximately log-spaced payload sizes from 16 B to
-4 MiB. Each payload size has five runs over the same random binary. The small
+The plotted sweep uses 185 approximately log-spaced payload sizes from 16 B to
+16 MiB. Each payload size has five runs over the same random binary. The small
 points are those individual runs; the lines are medians at each size. The
 graph uses a logarithmic x-axis for payload size and a linear y-axis for
-throughput. Dark marks are encode; lighter marks are decode. The dashed
-`b64veryfast trusted` line is checked against known-good input and skips
-block-level alphabet validation in the hot decoder loop.
+throughput. Dark marks are encode; lighter marks are decode; crimson marks are
+`b64veryfast`. The dashed `b64veryfast trusted` line is checked against
+known-good input and skips block-level alphabet validation in the hot decoder
+loop.
 
 Raw data:
 
@@ -76,35 +77,35 @@ values are in the summary CSV.
 
 Encode:
 
-| Library | 32 B | 512 B | 4 KiB | 64 KiB | 1 MiB | 4 MiB |
-|---|---:|---:|---:|---:|---:|---:|
-| OTP `base64` | 378 | 685 | 790 | 794 | 685 | 666 |
-| Original `b64fast` | 140 | 1,462 | 3,244 | 4,046 | 4,127 | 4,083 |
-| `b64rs` URL-safe | 716 | 4,279 | 7,993 | 11,755 | 11,676 | 12,083 |
-| `b64veryfast` | 1,256 | 6,812 | 18,608 | 23,478 | 24,048 | 23,194 |
+| Library | 32 B | 512 B | 4 KiB | 64 KiB | 1 MiB | 4 MiB | 16 MiB |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| OTP `base64` | 344 | 674 | 776 | 791 | 715 | 705 | 646 |
+| Original `b64fast` | 131 | 1,267 | 3,352 | 4,049 | 3,352 | 3,953 | 4,166 |
+| `b64rs` URL-safe | 666 | 4,565 | 9,570 | 11,159 | 7,456 | 8,813 | 12,153 |
+| **`b64veryfast`** | **1,132** | **7,287** | **18,401** | **21,386** | **11,638** | **14,528** | **24,372** |
 
 Decode:
 
-| Library | 32 B | 512 B | 4 KiB | 64 KiB | 1 MiB | 4 MiB |
-|---|---:|---:|---:|---:|---:|---:|
-| OTP `base64` | 246 | 510 | 555 | 554 | 535 | 511 |
-| Original `b64fast` | 139 | 1,465 | 3,452 | 4,148 | 4,156 | 4,023 |
-| `b64rs` URL-safe | 499 | 2,467 | 3,939 | 4,125 | 4,188 | 4,458 |
-| `b64veryfast` | 1,195 | 5,499 | 10,758 | 12,333 | 11,468 | 12,352 |
-| `b64veryfast` trusted | 1,189 | 5,532 | 12,027 | 13,625 | 12,584 | 13,529 |
+| Library | 32 B | 512 B | 4 KiB | 64 KiB | 1 MiB | 4 MiB | 16 MiB |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| OTP `base64` | 262 | 513 | 560 | 557 | 526 | 528 | 520 |
+| Original `b64fast` | 131 | 1,407 | 3,381 | 4,109 | 3,468 | 4,030 | 4,181 |
+| `b64rs` URL-safe | 484 | 2,521 | 3,916 | 4,099 | 3,758 | 3,911 | 4,454 |
+| **`b64veryfast`** | **1,385** | **5,252** | **10,635** | **12,275** | **8,171** | **9,431** | **12,515** |
+| **`b64veryfast` trusted** | **1,094** | **5,390** | **11,607** | **13,617** | **8,900** | **10,523** | **13,875** |
 
-At 1 MiB, `b64veryfast` is about 35.1x faster than OTP encode, 21.4x faster
-than OTP decode, 5.8x faster than original `b64fast` encode, and 2.8x faster
+At 1 MiB, `b64veryfast` is about 16.3x faster than OTP encode, 15.5x faster
+than OTP decode, 3.5x faster than original `b64fast` encode, and 2.4x faster
 than original `b64fast` decode on this host. `decode64_trusted/1` is about
-1.10x faster than checked `decode64/1` at 1 MiB, and about 3.0x faster than
+1.09x faster than checked `decode64/1` at 1 MiB, and about 2.6x faster than
 original `b64fast` decode.
 
 The `_url` variants follow the same performance profile. At 1 MiB,
-`b64veryfast:encode64_url/1` measured `23443.22 MiB/s`,
-`b64veryfast:decode64_url/1` measured `11258.36 MiB/s`, and
-`b64veryfast:decode64_url_trusted/1` measured `12430.40 MiB/s`, effectively
+`b64veryfast:encode64_url/1` measured `12219.96 MiB/s`,
+`b64veryfast:decode64_url/1` measured `8534.85 MiB/s`, and
+`b64veryfast:decode64_url_trusted/1` measured `9162.93 MiB/s`, effectively
 matching the standard Base64 path. Against `b64rs`, the URL-safe path is about
-2.0x faster on encode, 2.7x faster on checked decode, and 3.0x faster on
+1.6x faster on encode, 2.3x faster on checked decode, and 2.4x faster on
 trusted decode at 1 MiB.
 
 ### Reproducing The Benchmarks
@@ -289,16 +290,6 @@ the compiler accepts the selected flags.
 
 The generated `c_src/aklomp/lib/config.h` records which engines were enabled
 for a build. It is a build artifact and is removed by `make clean`.
-
-## Choosing A Library
-
-Use `b64veryfast` when binary Base64/Base64url work is on a hot path and a NIF
-is acceptable. Use OTP `base64` when you need pure Erlang/OTP-only behavior,
-when throughput is irrelevant, or when deploying native code is undesirable.
-
-For tiny binaries, benchmark in your actual call pattern; NIF call overhead can
-be more important than raw codec speed. For medium and large binaries,
-`b64veryfast` is the clear throughput winner in the benchmark above.
 
 ## License
 
