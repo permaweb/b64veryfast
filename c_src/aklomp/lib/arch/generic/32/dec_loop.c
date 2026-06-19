@@ -1,5 +1,5 @@
 static BASE64_FORCE_INLINE int
-dec_loop_generic_32_inner (const uint8_t **s, uint8_t **o, size_t *rounds)
+dec_loop_generic_32_inner (const uint8_t **s, uint8_t **o, size_t *rounds, int trusted)
 {
 	const uint32_t str
 		= base64_table_dec_32bit_d0[(*s)[0]]
@@ -10,12 +10,12 @@ dec_loop_generic_32_inner (const uint8_t **s, uint8_t **o, size_t *rounds)
 #if BASE64_LITTLE_ENDIAN
 
 	// LUTs for little-endian set MSB in case of invalid character:
-	if (str & UINT32_C(0x80000000)) {
+	if (!trusted && (str & UINT32_C(0x80000000))) {
 		return 0;
 	}
 #else
 	// LUTs for big-endian set LSB in case of invalid character:
-	if (str & UINT32_C(1)) {
+	if (!trusted && (str & UINT32_C(1))) {
 		return 0;
 	}
 #endif
@@ -30,7 +30,7 @@ dec_loop_generic_32_inner (const uint8_t **s, uint8_t **o, size_t *rounds)
 }
 
 static inline void
-dec_loop_generic_32 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen)
+dec_loop_generic_32 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen, int flags)
 {
 	if (*slen < 8) {
 		return;
@@ -44,38 +44,39 @@ dec_loop_generic_32 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen)
 
 	*slen -= rounds * 4;	// 4 bytes consumed per round
 	*olen += rounds * 3;	// 3 bytes produced per round
+	const int trusted = flags & BASE64_TRUSTED;
 
 	do {
 		if (rounds >= 8) {
-			if (dec_loop_generic_32_inner(s, o, &rounds) &&
-			    dec_loop_generic_32_inner(s, o, &rounds) &&
-			    dec_loop_generic_32_inner(s, o, &rounds) &&
-			    dec_loop_generic_32_inner(s, o, &rounds) &&
-			    dec_loop_generic_32_inner(s, o, &rounds) &&
-			    dec_loop_generic_32_inner(s, o, &rounds) &&
-			    dec_loop_generic_32_inner(s, o, &rounds) &&
-			    dec_loop_generic_32_inner(s, o, &rounds)) {
+			if (dec_loop_generic_32_inner(s, o, &rounds, trusted) &&
+			    dec_loop_generic_32_inner(s, o, &rounds, trusted) &&
+			    dec_loop_generic_32_inner(s, o, &rounds, trusted) &&
+			    dec_loop_generic_32_inner(s, o, &rounds, trusted) &&
+			    dec_loop_generic_32_inner(s, o, &rounds, trusted) &&
+			    dec_loop_generic_32_inner(s, o, &rounds, trusted) &&
+			    dec_loop_generic_32_inner(s, o, &rounds, trusted) &&
+			    dec_loop_generic_32_inner(s, o, &rounds, trusted)) {
 				continue;
 			}
 			break;
 		}
 		if (rounds >= 4) {
-			if (dec_loop_generic_32_inner(s, o, &rounds) &&
-			    dec_loop_generic_32_inner(s, o, &rounds) &&
-			    dec_loop_generic_32_inner(s, o, &rounds) &&
-			    dec_loop_generic_32_inner(s, o, &rounds)) {
+			if (dec_loop_generic_32_inner(s, o, &rounds, trusted) &&
+			    dec_loop_generic_32_inner(s, o, &rounds, trusted) &&
+			    dec_loop_generic_32_inner(s, o, &rounds, trusted) &&
+			    dec_loop_generic_32_inner(s, o, &rounds, trusted)) {
 				continue;
 			}
 			break;
 		}
 		if (rounds >= 2) {
-			if (dec_loop_generic_32_inner(s, o, &rounds) &&
-			    dec_loop_generic_32_inner(s, o, &rounds)) {
+			if (dec_loop_generic_32_inner(s, o, &rounds, trusted) &&
+			    dec_loop_generic_32_inner(s, o, &rounds, trusted)) {
 				continue;
 			}
 			break;
 		}
-		dec_loop_generic_32_inner(s, o, &rounds);
+		dec_loop_generic_32_inner(s, o, &rounds, trusted);
 		break;
 
 	} while (rounds > 0);

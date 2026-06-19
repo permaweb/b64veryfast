@@ -1,5 +1,5 @@
 static BASE64_FORCE_INLINE int
-dec_loop_avx2_inner (const uint8_t **s, uint8_t **o, size_t *rounds)
+dec_loop_avx2_inner (const uint8_t **s, uint8_t **o, size_t *rounds, int trusted)
 {
 	const __m256i lut_lo = _mm256_setr_epi8(
 		0x15, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
@@ -30,7 +30,7 @@ dec_loop_avx2_inner (const uint8_t **s, uint8_t **o, size_t *rounds)
 	const __m256i hi         = _mm256_shuffle_epi8(lut_hi, hi_nibbles);
 	const __m256i lo         = _mm256_shuffle_epi8(lut_lo, lo_nibbles);
 
-	if (!_mm256_testz_si256(lo, hi)) {
+	if (!trusted && !_mm256_testz_si256(lo, hi)) {
 		return 0;
 	}
 
@@ -54,7 +54,7 @@ dec_loop_avx2_inner (const uint8_t **s, uint8_t **o, size_t *rounds)
 }
 
 static inline void
-dec_loop_avx2 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen)
+dec_loop_avx2 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen, int flags)
 {
 	if (*slen < 45) {
 		return;
@@ -65,41 +65,42 @@ dec_loop_avx2 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen)
 	// bytes of input data left to cover the gap. (11 data bytes and up to
 	// two end-of-string markers.)
 	size_t rounds = (*slen - 13) / 32;
+	const int trusted = flags & BASE64_TRUSTED;
 
 	*slen -= rounds * 32;	// 32 bytes consumed per round
 	*olen += rounds * 24;	// 24 bytes produced per round
 
 	do {
 		if (rounds >= 8) {
-			if (dec_loop_avx2_inner(s, o, &rounds) &&
-			    dec_loop_avx2_inner(s, o, &rounds) &&
-			    dec_loop_avx2_inner(s, o, &rounds) &&
-			    dec_loop_avx2_inner(s, o, &rounds) &&
-			    dec_loop_avx2_inner(s, o, &rounds) &&
-			    dec_loop_avx2_inner(s, o, &rounds) &&
-			    dec_loop_avx2_inner(s, o, &rounds) &&
-			    dec_loop_avx2_inner(s, o, &rounds)) {
+			if (dec_loop_avx2_inner(s, o, &rounds, trusted) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted)) {
 				continue;
 			}
 			break;
 		}
 		if (rounds >= 4) {
-			if (dec_loop_avx2_inner(s, o, &rounds) &&
-			    dec_loop_avx2_inner(s, o, &rounds) &&
-			    dec_loop_avx2_inner(s, o, &rounds) &&
-			    dec_loop_avx2_inner(s, o, &rounds)) {
+			if (dec_loop_avx2_inner(s, o, &rounds, trusted) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted)) {
 				continue;
 			}
 			break;
 		}
 		if (rounds >= 2) {
-			if (dec_loop_avx2_inner(s, o, &rounds) &&
-			    dec_loop_avx2_inner(s, o, &rounds)) {
+			if (dec_loop_avx2_inner(s, o, &rounds, trusted) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted)) {
 				continue;
 			}
 			break;
 		}
-		dec_loop_avx2_inner(s, o, &rounds);
+		dec_loop_avx2_inner(s, o, &rounds, trusted);
 		break;
 
 	} while (rounds > 0);

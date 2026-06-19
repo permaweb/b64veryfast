@@ -22,9 +22,22 @@ delta_lookup (const uint8x16_t v)
 }
 
 static BASE64_FORCE_INLINE uint8x16_t
-dec_loop_neon32_lane (uint8x16_t *lane)
+dec_loop_neon32_lane (uint8x16_t *lane, int trusted)
 {
 	// See the SSSE3 decoder for an explanation of the algorithm.
+	const uint8x16_t input = *lane;
+	const uint8x16_t mask_2F = vdupq_n_u8(0x2F);
+
+	const uint8x16_t hi_nibbles = vshrq_n_u8(input, 4);
+	const uint8x16_t eq_2F      = vceqq_u8(input, mask_2F);
+
+	// Now simply add the delta values to the input:
+	*lane = vaddq_u8(*lane, delta_lookup(vaddq_u8(eq_2F, hi_nibbles)));
+
+	if (trusted) {
+		return vdupq_n_u8(0);
+	}
+
 	const uint8x16_t lut_lo = {
 		0x15, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
 		0x11, 0x11, 0x13, 0x1A, 0x1B, 0x1B, 0x1B, 0x1A
@@ -36,24 +49,16 @@ dec_loop_neon32_lane (uint8x16_t *lane)
 	};
 
 	const uint8x16_t mask_0F = vdupq_n_u8(0x0F);
-	const uint8x16_t mask_2F = vdupq_n_u8(0x2F);
-
-	const uint8x16_t hi_nibbles = vshrq_n_u8(*lane, 4);
-	const uint8x16_t lo_nibbles = vandq_u8(*lane, mask_0F);
-	const uint8x16_t eq_2F      = vceqq_u8(*lane, mask_2F);
-
+	const uint8x16_t lo_nibbles = vandq_u8(input, mask_0F);
 	const uint8x16_t hi = vqtbl1q_u8(lut_hi, hi_nibbles);
 	const uint8x16_t lo = vqtbl1q_u8(lut_lo, lo_nibbles);
-
-	// Now simply add the delta values to the input:
-	*lane = vaddq_u8(*lane, delta_lookup(vaddq_u8(eq_2F, hi_nibbles)));
 
 	// Return the validity mask:
 	return vandq_u8(lo, hi);
 }
 
 static inline void
-dec_loop_neon32 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen)
+dec_loop_neon32 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen, int flags)
 {
 	if (*slen < 64) {
 		return;
@@ -63,6 +68,7 @@ dec_loop_neon32 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen)
 	// extra trailing zero bytes are written, so it is not necessary to
 	// reserve extra input bytes:
 	size_t rounds = *slen / 64;
+	const int trusted = flags & BASE64_TRUSTED;
 
 	*slen -= rounds * 64;	// 64 bytes consumed per round
 	*olen += rounds * 48;	// 48 bytes produced per round
@@ -75,15 +81,15 @@ dec_loop_neon32 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen)
 
 		// Decode each lane, collect a mask of invalid inputs:
 		const uint8x16_t classified
-			= dec_loop_neon32_lane(&str.val[0])
-			| dec_loop_neon32_lane(&str.val[1])
-			| dec_loop_neon32_lane(&str.val[2])
-			| dec_loop_neon32_lane(&str.val[3]);
+			= dec_loop_neon32_lane(&str.val[0], trusted)
+			| dec_loop_neon32_lane(&str.val[1], trusted)
+			| dec_loop_neon32_lane(&str.val[2], trusted)
+			| dec_loop_neon32_lane(&str.val[3], trusted);
 
 		// Check for invalid input: if any of the delta values are
 		// zero, fall back on bytewise code to do error checking and
 		// reporting:
-		if (is_nonzero(classified)) {
+		if (!trusted && is_nonzero(classified)) {
 			break;
 		}
 

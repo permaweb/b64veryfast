@@ -16,10 +16,25 @@ TOP = 58
 BOTTOM = 82
 
 SERIES = [
-    ("standard", "otp-base64", "OTP base64", "#4b5563", "#cbd5e1"),
-    ("standard", "b64fast", "Original b64fast", "#b45309", "#fbbf24"),
-    ("base64url", "b64rs", "b64rs url", "#1d4ed8", "#93c5fd"),
-    ("standard", "b64veryfast", "b64veryfast", "#047857", "#86efac"),
+    ("standard", "otp-base64", "OTP base64", {
+        "encode": ("#4b5563", ""),
+        "decode": ("#cbd5e1", ""),
+    }),
+    ("standard", "b64fast", "Original b64fast", {
+        "encode": ("#b45309", ""),
+        "decode": ("#fbbf24", ""),
+    }),
+    ("base64url", "b64rs", "b64rs url", {
+        "encode": ("#1d4ed8", ""),
+        "decode": ("#93c5fd", ""),
+    }),
+    ("standard", "b64veryfast", "b64veryfast", {
+        "encode": ("#047857", ""),
+        "decode": ("#86efac", ""),
+    }),
+    ("standard", "b64veryfast-trusted", "b64veryfast trusted", {
+        "decode": ("#14b8a6", ' stroke-dasharray="6 4"'),
+    }),
 ]
 
 
@@ -126,8 +141,8 @@ def nice_y_ticks(y_min, y_max):
 
 def collect_series(summary, rows):
     combined = []
-    for family, library, label, encode_color, decode_color in SERIES:
-        for operation in ("encode", "decode"):
+    for family, library, label, operations in SERIES:
+        for operation, (color, dash) in operations.items():
             points = []
             for (fam, lib, op, size), vals in summary.items():
                 if fam == family and lib == library and op == operation:
@@ -140,8 +155,8 @@ def collect_series(summary, rows):
                 combined.append({
                     "label": label,
                     "operation": operation,
-                    "color": encode_color if operation == "encode" else decode_color,
-                    "dash": "",
+                    "color": color,
+                    "dash": dash,
                     "points": sorted(points, key=lambda item: item["size"]),
                     "run_points": sorted(run_points, key=lambda item: (item["size_bytes"], item["run"])),
                 })
@@ -198,10 +213,10 @@ def svg_chart(summary, rows, out_path):
 
     legend_x = WIDTH - RIGHT + 28
     legend_y = TOP + 8
-    legend_rows = []
-    for family, library, label, encode_color, decode_color in SERIES:
-        legend_rows.append((label, "encode", encode_color, ""))
-        legend_rows.append((label, "decode", decode_color, ""))
+    legend_rows = [
+        (item["label"], item["operation"], item["color"], item["dash"])
+        for item in series
+    ]
     for i, (label, operation, color, dash) in enumerate(legend_rows):
         y = legend_y + i * 24
         lines.append(f'<line x1="{legend_x}" y1="{y}" x2="{legend_x + 24}" y2="{y}" stroke="{color}" stroke-width="3" stroke-linecap="round"{dash}/>')

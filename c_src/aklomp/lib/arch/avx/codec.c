@@ -60,7 +60,7 @@ base64_stream_decode_avx BASE64_DEC_PARAMS
 {
 #if HAVE_AVX
 	#include "../generic/dec_head.c"
-	dec_loop_ssse3(&s, &slen, &o, &olen);
+	dec_loop_ssse3(&s, &slen, &o, &olen, state->flags);
 	#include "../generic/dec_tail.c"
 #else
 	return base64_dec_stub(state, src, srclen, out, outlen);

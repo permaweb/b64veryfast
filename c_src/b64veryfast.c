@@ -106,6 +106,12 @@ decode64_do(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 static ERL_NIF_TERM
+decode64_trusted_do(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    return decode_do(env, argc, argv, BASE64_TRUSTED);
+}
+
+static ERL_NIF_TERM
 encode64_url_do(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
     return encode_do(env, argc, argv, BASE64_URL_NOPAD);
@@ -115,6 +121,12 @@ static ERL_NIF_TERM
 decode64_url_do(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
     return decode_do(env, argc, argv, BASE64_URL_NOPAD);
+}
+
+static ERL_NIF_TERM
+decode64_url_trusted_do(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    return decode_do(env, argc, argv, BASE64_URL_NOPAD | BASE64_TRUSTED);
 }
 
 #ifdef ERL_NIF_DIRTY_JOB_CPU_BOUND
@@ -146,6 +158,12 @@ decode64(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 static ERL_NIF_TERM
+decode64_trusted(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    return schedule_if_large(env, argc, argv, decode64_trusted_do, "decode64_trusted_dirty");
+}
+
+static ERL_NIF_TERM
 encode64_url(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
     return schedule_if_large(env, argc, argv, encode64_url_do, "encode64_url_dirty");
@@ -156,18 +174,28 @@ decode64_url(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
     return schedule_if_large(env, argc, argv, decode64_url_do, "decode64_url_dirty");
 }
+
+static ERL_NIF_TERM
+decode64_url_trusted(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    return schedule_if_large(env, argc, argv, decode64_url_trusted_do, "decode64_url_trusted_dirty");
+}
 #else
 #define encode64 encode64_do
 #define decode64 decode64_do
+#define decode64_trusted decode64_trusted_do
 #define encode64_url encode64_url_do
 #define decode64_url decode64_url_do
+#define decode64_url_trusted decode64_url_trusted_do
 #endif
 
 static ErlNifFunc funcs[] = {
     {"encode64", 1, encode64, 0},
     {"decode64", 1, decode64, 0},
+    {"decode64_trusted", 1, decode64_trusted, 0},
     {"encode64_url", 1, encode64_url, 0},
-    {"decode64_url", 1, decode64_url, 0}
+    {"decode64_url", 1, decode64_url, 0},
+    {"decode64_url_trusted", 1, decode64_url_trusted, 0}
 };
 
 ERL_NIF_INIT(b64veryfast, funcs, NULL, NULL, NULL, NULL)

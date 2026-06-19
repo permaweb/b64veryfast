@@ -43,7 +43,7 @@ base64_stream_decode_plain BASE64_DEC_PARAMS
 {
 	#include "dec_head.c"
 #if BASE64_WORDSIZE >= 32
-	dec_loop_generic_32(&s, &slen, &o, &olen);
+	dec_loop_generic_32(&s, &slen, &o, &olen, state->flags);
 #endif
 	#include "dec_tail.c"
 }

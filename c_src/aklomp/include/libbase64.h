@@ -57,6 +57,7 @@ extern "C" {
 
 #define BASE64_URL_SAFE		(1 << 16)
 #define BASE64_NO_PADDING	(1 << 17)
+#define BASE64_TRUSTED		(1 << 18)
 #define BASE64_URL_NOPAD	(BASE64_URL_SAFE | BASE64_NO_PADDING)
 
 struct base64_state {

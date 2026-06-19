@@ -6,4 +6,5 @@
 ebin/
 _build/
 c_src/b64veryfast.d
+c_src/aklomp/lib/config.h
 rebar.lock

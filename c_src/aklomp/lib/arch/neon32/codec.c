@@ -72,8 +72,8 @@ base64_stream_decode_neon32 BASE64_DEC_PARAMS
 {
 #ifdef BASE64_USE_NEON32
 	#include "../generic/dec_head.c"
-	dec_loop_neon32(&s, &slen, &o, &olen);
-	dec_loop_generic_32(&s, &slen, &o, &olen);
+	dec_loop_neon32(&s, &slen, &o, &olen, state->flags);
+	dec_loop_generic_32(&s, &slen, &o, &olen, state->flags);
 	#include "../generic/dec_tail.c"
 #else
 	return base64_dec_stub(state, src, srclen, out, outlen);

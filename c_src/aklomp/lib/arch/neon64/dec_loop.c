@@ -53,7 +53,7 @@ static const uint8_t dec_lut2[] = {
 // values greater than 63.
 
 static inline void
-dec_loop_neon64 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen)
+dec_loop_neon64 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen, int flags)
 {
 	if (*slen < 64) {
 		return;
@@ -63,6 +63,7 @@ dec_loop_neon64 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen)
 	// extra trailing zero bytes are written, so it is not necessary to
 	// reserve extra input bytes:
 	size_t rounds = *slen / 64;
+	const int trusted = flags & BASE64_TRUSTED;
 
 	*slen -= rounds * 64;	// 64 bytes consumed per round
 	*olen += rounds * 48;	// 48 bytes produced per round
@@ -102,16 +103,18 @@ dec_loop_neon64 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen)
 		str.val[2] = vorrq_u8(dec1.val[2], dec2.val[2]);
 		str.val[3] = vorrq_u8(dec1.val[3], dec2.val[3]);
 
-		// Check for invalid input, any value larger than 63:
-		const uint8x16_t classified
-			= vorrq_u8(
-				vorrq_u8(vcgtq_u8(str.val[0], vdupq_n_u8(63)), vcgtq_u8(str.val[1], vdupq_n_u8(63))),
-				vorrq_u8(vcgtq_u8(str.val[2], vdupq_n_u8(63)), vcgtq_u8(str.val[3], vdupq_n_u8(63)))
-			);
+		if (!trusted) {
+			// Check for invalid input, any value larger than 63:
+			const uint8x16_t classified
+				= vorrq_u8(
+					vorrq_u8(vcgtq_u8(str.val[0], vdupq_n_u8(63)), vcgtq_u8(str.val[1], vdupq_n_u8(63))),
+					vorrq_u8(vcgtq_u8(str.val[2], vdupq_n_u8(63)), vcgtq_u8(str.val[3], vdupq_n_u8(63)))
+				);
 
-		// Check that all bits are zero:
-		if (vmaxvq_u8(classified) != 0U) {
-			break;
+			// Check that all bits are zero:
+			if (vmaxvq_u8(classified) != 0U) {
+				break;
+			}
 		}
 
 		// Compress four bytes into three:

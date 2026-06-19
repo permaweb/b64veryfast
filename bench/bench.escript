@@ -69,7 +69,9 @@ definitions() ->
         {"standard", "b64veryfast", "encode",
             fun(Bin, _StdEnc, _UrlEnc) -> fun() -> b64veryfast:encode64(Bin) end end},
         {"standard", "b64veryfast", "decode",
-            fun(_Bin, StdEnc, _UrlEnc) -> fun() -> b64veryfast:decode64(StdEnc) end end}
+            fun(_Bin, StdEnc, _UrlEnc) -> fun() -> b64veryfast:decode64(StdEnc) end end},
+        {"standard", "b64veryfast-trusted", "decode",
+            fun(_Bin, StdEnc, _UrlEnc) -> fun() -> b64veryfast:decode64_trusted(StdEnc) end end}
     ],
     Url = [
         {"base64url", "otp-base64-url", "encode",
@@ -95,7 +97,9 @@ definitions() ->
         {"base64url", "b64veryfast-url", "encode",
             fun(Bin, _StdEnc, _UrlEnc) -> fun() -> b64veryfast:encode64_url(Bin) end end},
         {"base64url", "b64veryfast-url", "decode",
-            fun(_Bin, _StdEnc, UrlEnc) -> fun() -> b64veryfast:decode64_url(UrlEnc) end end}
+            fun(_Bin, _StdEnc, UrlEnc) -> fun() -> b64veryfast:decode64_url(UrlEnc) end end},
+        {"base64url", "b64veryfast-url-trusted", "decode",
+            fun(_Bin, _StdEnc, UrlEnc) -> fun() -> b64veryfast:decode64_url_trusted(UrlEnc) end end}
     ],
     Std ++ StdB64Fast ++ StdVeryFast ++ Url ++ UrlB64Rs ++ UrlVeryFast.
 

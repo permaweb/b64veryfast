@@ -8,7 +8,8 @@ SIMD-oriented [`aklomp/base64`](https://github.com/aklomp/base64) C backend.
 The NIF reads Erlang input binaries without copying, allocates the exact output
 binary once, writes directly into that new binary, and schedules large calls on
 dirty CPU schedulers. On this Apple arm64 benchmark host it reaches about
-24 GiB/s encode and 12 GiB/s decode for 1 MiB binaries.
+24 GiB/s encode, 11.5 GiB/s checked decode, and 12.6 GiB/s trusted decode for
+1 MiB binaries.
 
 This project is forked from
 [`zuckschwerdt/b64fast`](https://github.com/zuckschwerdt/b64fast). Credit to
@@ -26,7 +27,9 @@ The plotted sweep uses 37 approximately log-spaced payload sizes from 16 B to
 4 MiB. Each payload size has five runs over the same random binary. The small
 points are those individual runs; the lines are medians at each size. The
 graph uses a logarithmic x-axis for payload size and a linear y-axis for
-throughput. Dark marks are encode; lighter marks are decode.
+throughput. Dark marks are encode; lighter marks are decode. The dashed
+`b64veryfast trusted` line is checked against known-good input and skips
+block-level alphabet validation in the hot decoder loop.
 
 Raw data:
 
@@ -55,6 +58,10 @@ Benchmark caveats:
 - The `b64veryfast` `_url` functions track the standard functions closely, so
   the graph shows one `b64veryfast` pair and leaves the URL-safe details in the
   raw CSV.
+- The trusted decode variants are only for input that has already been
+  validated or was produced by a trusted encoder. They still allocate bounded
+  Erlang output binaries, but malformed trusted input has unspecified decoded
+  bytes and may still fail on the non-vector tail.
 - Decode throughput is reported against decoded output bytes, so encode and
   decode numbers are directly comparable for the same input size.
 
@@ -71,29 +78,34 @@ Encode:
 
 | Library | 32 B | 512 B | 4 KiB | 64 KiB | 1 MiB | 4 MiB |
 |---|---:|---:|---:|---:|---:|---:|
-| OTP `base64` | 349 | 691 | 782 | 782 | 726 | 700 |
-| Original `b64fast` | 138 | 1,480 | 3,416 | 4,130 | 4,164 | 4,079 |
-| `b64rs` URL-safe | 689 | 4,482 | 9,645 | 11,779 | 12,021 | 12,039 |
-| `b64veryfast` | 1,269 | 6,738 | 18,842 | 23,815 | 24,415 | 23,839 |
+| OTP `base64` | 378 | 685 | 790 | 794 | 685 | 666 |
+| Original `b64fast` | 140 | 1,462 | 3,244 | 4,046 | 4,127 | 4,083 |
+| `b64rs` URL-safe | 716 | 4,279 | 7,993 | 11,755 | 11,676 | 12,083 |
+| `b64veryfast` | 1,256 | 6,812 | 18,608 | 23,478 | 24,048 | 23,194 |
 
 Decode:
 
 | Library | 32 B | 512 B | 4 KiB | 64 KiB | 1 MiB | 4 MiB |
 |---|---:|---:|---:|---:|---:|---:|
-| OTP `base64` | 261 | 511 | 548 | 561 | 538 | 523 |
-| Original `b64fast` | 140 | 1,484 | 3,518 | 4,137 | 4,214 | 4,229 |
-| `b64rs` URL-safe | 490 | 2,580 | 3,996 | 4,108 | 4,375 | 4,462 |
-| `b64veryfast` | 1,209 | 5,348 | 10,789 | 12,365 | 12,041 | 12,440 |
+| OTP `base64` | 246 | 510 | 555 | 554 | 535 | 511 |
+| Original `b64fast` | 139 | 1,465 | 3,452 | 4,148 | 4,156 | 4,023 |
+| `b64rs` URL-safe | 499 | 2,467 | 3,939 | 4,125 | 4,188 | 4,458 |
+| `b64veryfast` | 1,195 | 5,499 | 10,758 | 12,333 | 11,468 | 12,352 |
+| `b64veryfast` trusted | 1,189 | 5,532 | 12,027 | 13,625 | 12,584 | 13,529 |
 
-At 1 MiB, `b64veryfast` is about 33.6x faster than OTP encode, 22.4x faster
-than OTP decode, 5.9x faster than original `b64fast` encode, and 2.9x faster
-than original `b64fast` decode on this host.
+At 1 MiB, `b64veryfast` is about 35.1x faster than OTP encode, 21.4x faster
+than OTP decode, 5.8x faster than original `b64fast` encode, and 2.8x faster
+than original `b64fast` decode on this host. `decode64_trusted/1` is about
+1.10x faster than checked `decode64/1` at 1 MiB, and about 3.0x faster than
+original `b64fast` decode.
 
 The `_url` variants follow the same performance profile. At 1 MiB,
-`b64veryfast:encode64_url/1` measured `24402.64 MiB/s` and
-`b64veryfast:decode64_url/1` measured `12018.03 MiB/s`, effectively matching
-the standard Base64 path. Against `b64rs`, the URL-safe path is about 2.0x
-faster on encode and 2.7x faster on decode at 1 MiB.
+`b64veryfast:encode64_url/1` measured `23443.22 MiB/s`,
+`b64veryfast:decode64_url/1` measured `11258.36 MiB/s`, and
+`b64veryfast:decode64_url_trusted/1` measured `12430.40 MiB/s`, effectively
+matching the standard Base64 path. Against `b64rs`, the URL-safe path is about
+2.0x faster on encode, 2.7x faster on checked decode, and 3.0x faster on
+trusted decode at 1 MiB.
 
 ### Reproducing The Benchmarks
 
@@ -158,6 +170,14 @@ The vendored backend carries URL-safe and no-padding flags used by
 unpadded input, preserving useful original `b64fast` compatibility. Decoding
 does not ignore whitespace.
 
+The trusted decode functions use the same memory discipline as checked decode:
+the NIF reads the inspected Erlang binary, allocates one new Erlang output
+binary, and writes only into that output. The difference is the backend flag:
+`decode64_trusted/1` and `decode64_url_trusted/1` skip the per-block alphabet
+classification/reduction in the SIMD and scalar hot loops. They are suitable
+when another layer has already guaranteed that the input is valid Base64 or
+Base64url.
+
 ## API
 
 All functions accept and return binaries. Non-binary input raises `badarg`.
@@ -165,9 +185,15 @@ All functions accept and return binaries. Non-binary input raises `badarg`.
 ```erlang
 b64veryfast:encode64(Bin).      % standard padded Base64
 b64veryfast:decode64(Bin).      % standard Base64 decode
+b64veryfast:decode64_trusted(Bin).
 b64veryfast:encode64_url(Bin).  % URL-safe Base64 without padding
 b64veryfast:decode64_url(Bin).  % URL-safe Base64 decode
+b64veryfast:decode64_url_trusted(Bin).
 ```
+
+Use the trusted decode variants only for known-good input. Invalid bytes are
+not a memory safety issue for the NIF, but the decoded bytes are unspecified
+and some malformed tails may still raise `badarg`.
 
 Example:
 

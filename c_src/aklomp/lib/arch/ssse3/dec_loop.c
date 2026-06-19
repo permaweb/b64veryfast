@@ -66,7 +66,7 @@
 // 1111 0x10 andlut     0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10
 
 static BASE64_FORCE_INLINE int
-dec_loop_ssse3_inner (const uint8_t **s, uint8_t **o, size_t *rounds)
+dec_loop_ssse3_inner (const uint8_t **s, uint8_t **o, size_t *rounds, int trusted)
 {
 	const __m128i lut_lo = _mm_setr_epi8(
 		0x15, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
@@ -93,7 +93,8 @@ dec_loop_ssse3_inner (const uint8_t **s, uint8_t **o, size_t *rounds)
 
 	// Check for invalid input: if any "and" values from lo and hi are not
 	// zero, fall back on bytewise code to do error checking and reporting:
-	if (_mm_movemask_epi8(_mm_cmpgt_epi8(_mm_and_si128(lo, hi), _mm_setzero_si128())) != 0) {
+	if (!trusted &&
+	    _mm_movemask_epi8(_mm_cmpgt_epi8(_mm_and_si128(lo, hi), _mm_setzero_si128())) != 0) {
 		return 0;
 	}
 
@@ -117,7 +118,7 @@ dec_loop_ssse3_inner (const uint8_t **s, uint8_t **o, size_t *rounds)
 }
 
 static inline void
-dec_loop_ssse3 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen)
+dec_loop_ssse3 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen, int flags)
 {
 	if (*slen < 24) {
 		return;
@@ -128,41 +129,42 @@ dec_loop_ssse3 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen)
 	// of input data left to cover the gap. (6 data bytes and up to two
 	// end-of-string markers.)
 	size_t rounds = (*slen - 8) / 16;
+	const int trusted = flags & BASE64_TRUSTED;
 
 	*slen -= rounds * 16;	// 16 bytes consumed per round
 	*olen += rounds * 12;	// 12 bytes produced per round
 
 	do {
 		if (rounds >= 8) {
-			if (dec_loop_ssse3_inner(s, o, &rounds) &&
-			    dec_loop_ssse3_inner(s, o, &rounds) &&
-			    dec_loop_ssse3_inner(s, o, &rounds) &&
-			    dec_loop_ssse3_inner(s, o, &rounds) &&
-			    dec_loop_ssse3_inner(s, o, &rounds) &&
-			    dec_loop_ssse3_inner(s, o, &rounds) &&
-			    dec_loop_ssse3_inner(s, o, &rounds) &&
-			    dec_loop_ssse3_inner(s, o, &rounds)) {
+			if (dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted)) {
 				continue;
 			}
 			break;
 		}
 		if (rounds >= 4) {
-			if (dec_loop_ssse3_inner(s, o, &rounds) &&
-			    dec_loop_ssse3_inner(s, o, &rounds) &&
-			    dec_loop_ssse3_inner(s, o, &rounds) &&
-			    dec_loop_ssse3_inner(s, o, &rounds)) {
+			if (dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted)) {
 				continue;
 			}
 			break;
 		}
 		if (rounds >= 2) {
-			if (dec_loop_ssse3_inner(s, o, &rounds) &&
-			    dec_loop_ssse3_inner(s, o, &rounds)) {
+			if (dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted)) {
 				continue;
 			}
 			break;
 		}
-		dec_loop_ssse3_inner(s, o, &rounds);
+		dec_loop_ssse3_inner(s, o, &rounds, trusted);
 		break;
 
 	} while (rounds > 0);
