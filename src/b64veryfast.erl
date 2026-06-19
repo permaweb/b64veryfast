@@ -1,5 +1,5 @@
--module(b64fast).
--export([encode64/1, decode64/1]).
+-module(b64veryfast).
+-export([encode64/1, decode64/1, encode64_url/1, decode64_url/1]).
 -on_load(init/0).
 
 % The name of the application we're writing. This is the name
@@ -19,6 +19,12 @@ encode64(Bin) when is_binary(Bin) ->
     not_loaded(?LINE).
 
 decode64(Bin) when is_binary(Bin) ->
+    not_loaded(?LINE).
+
+encode64_url(Bin) when is_binary(Bin) ->
+    not_loaded(?LINE).
+
+decode64_url(Bin) when is_binary(Bin) ->
     not_loaded(?LINE).
 
 % Since we used init/0 in our -on_load() preprocessor directive, this

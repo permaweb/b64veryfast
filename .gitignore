@@ -5,5 +5,5 @@
 .eunit/
 ebin/
 _build/
-c_src/b64fast.d
+c_src/b64veryfast.d
 rebar.lock

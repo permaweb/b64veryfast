@@ -1,0 +1,15 @@
+{application, b64veryfast, [
+    {description, "Extremely fast Base64 and Base64url encoding and decoding for Erlang, backed by aklomp/base64."},
+    {vsn, "0.2.3"},
+    {modules, [b64veryfast]},
+    {registered, []},
+    {applications, [kernel, stdlib]},
+    {env, []},
+    {licenses, ["MIT"]},
+    {links, [
+        {"GitHub", "https://github.com/permaweb/b64veryfast"},
+        {"Original b64fast", "https://github.com/zuckschwerdt/b64fast"},
+        {"aklomp/base64", "https://github.com/aklomp/base64"}
+    ]},
+    {files, ["src", "c_src", "test", "rebar.config", "Makefile", "README.md", "LICENSE"]}
+]}.
