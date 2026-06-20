@@ -32,7 +32,7 @@ SERIES = [
         "encode": ("#b2182b", "", 3.1),
         "decode": ("#ef8a62", "", 3.1),
     }),
-    ("standard", "b64veryfast-trusted", "b64veryfast trusted", {
+    ("standard", "b64veryfast-unchecked", "b64veryfast unchecked", {
         "decode": ("#d6604d", ' stroke-dasharray="6 4"', 3.1),
     }),
 ]
@@ -47,6 +47,10 @@ def read_rows(path):
             row["run"] = int(row["run"])
             row["elapsed_us"] = int(row["elapsed_us"])
             row["mib_per_s"] = float(row["mib_per_s"])
+            if row["library"] == "b64veryfast-trusted":
+                row["library"] = "b64veryfast-unchecked"
+            elif row["library"] == "b64veryfast-url-trusted":
+                row["library"] = "b64veryfast-url-unchecked"
             rows.append(row)
     return rows
 

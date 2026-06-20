@@ -11,8 +11,8 @@ schedulers. URL-safe operations are handled inside the backend rather than by
 post-processing in Erlang.
 
 In the benchmark environment documented in the Benchmarks section, peak median
-throughput is `23.8 GiB/s` encode, `12.2 GiB/s` checked, and `13.5 GiB/s`
-for trusted-input (no input range checking, etc.) decode.
+throughput is `24.4 GiB/s` encode, `12.8 GiB/s` checked, and `14.2 GiB/s`
+for unchecked (no input range checking, etc.) decode.
 
 This project is forked from
 [`zuckschwerdt/b64fast`](https://github.com/zuckschwerdt/b64fast). Credit to
@@ -30,7 +30,7 @@ credit to its authors and contributors for the high-performance Base64 codecs.
   Erlang post-processing pass for `+`/`/`/`=` translation.
 - Large payloads are scheduled on dirty CPU schedulers so long-running native
   work does not occupy normal BEAM schedulers.
-- Trusted decode variants can skip per-block alphabet classification when a
+- Unchecked decode variants can skip per-block alphabet classification when a
   caller has already guaranteed valid input.
 
 ## Benchmarks
@@ -46,12 +46,18 @@ Each payload size has five runs over the same random binary. The graph uses a
 logarithmic x-axis for payload size and a linear y-axis for throughput. Points
 are individual runs; lines are per-size medians. Dark marks are encode, lighter
 marks are decode, crimson marks are `b64veryfast`, and the dashed crimson line
-is `decode64_trusted/1`.
+is `decode64_unchecked/1`.
 
-The benchmark warms each operation and payload size with up to 5,000 iterations,
+The benchmark warms and calibrates each operation/payload-size pair, choosing an
+iteration count intended to keep each measured run above timer-noise scale. It
 then forces Erlang garbage collection before each measured run. It does not pin
 schedulers, isolate cores, or disable other host activity, so scatter in the
 points is expected.
+
+The mixed full-sweep graph can show a mid-size throughput depression around the
+sub-MiB to few-MiB range. That is not a deterministic codec boundary: isolated
+boundary sweeps of the same compiled NIF stay flat through this region. The
+effect is caused by dirty-scheduler dispatch and Erlang allocator state.
 
 ### Selected Results
 
@@ -62,23 +68,23 @@ Encode (`MiB/s`):
 
 | Library | 32 B | 512 B | 4 KiB | 64 KiB | 1 MiB | 4 MiB | 16 MiB |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| OTP `base64` | 344 | 674 | 776 | 791 | 715 | 705 | 646 |
-| Original `b64fast` | 131 | 1,267 | 3,352 | 4,049 | 3,352 | 3,953 | 4,166 |
-| `b64rs` URL-safe | 666 | 4,565 | 9,570 | 11,159 | 7,456 | 8,813 | 12,153 |
-| **`b64veryfast`** | **1,132** | **7,287** | **18,401** | **21,386** | **11,638** | **14,528** | **24,372** |
+| OTP `base64` | 395 | 664 | 777 | 804 | 717 | 646 | 637 |
+| Original `b64fast` | 141 | 1,364 | 3,349 | 4,006 | 3,329 | 3,580 | 4,173 |
+| `b64rs` URL-safe | 762 | 4,350 | 9,180 | 12,100 | 6,893 | 8,155 | 12,152 |
+| **`b64veryfast`** | **1,750** | **6,503** | **17,934** | **24,613** | **10,421** | **12,568** | **24,233** |
 
 Decode (`MiB/s`):
 
 | Library | 32 B | 512 B | 4 KiB | 64 KiB | 1 MiB | 4 MiB | 16 MiB |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| OTP `base64` | 262 | 513 | 560 | 557 | 526 | 528 | 520 |
-| Original `b64fast` | 131 | 1,407 | 3,381 | 4,109 | 3,468 | 4,030 | 4,181 |
-| `b64rs` URL-safe | 484 | 2,521 | 3,916 | 4,099 | 3,758 | 3,911 | 4,454 |
-| **`b64veryfast`** | **1,385** | **5,252** | **10,635** | **12,275** | **8,171** | **9,431** | **12,515** |
-| **`b64veryfast` trusted** | **1,094** | **5,390** | **11,607** | **13,617** | **8,900** | **10,523** | **13,875** |
+| OTP `base64` | 286 | 520 | 556 | 564 | 520 | 481 | 512 |
+| Original `b64fast` | 140 | 1,416 | 3,347 | 4,414 | 3,410 | 3,554 | 4,185 |
+| `b64rs` URL-safe | 525 | 2,399 | 3,930 | 4,372 | 3,519 | 3,864 | 4,481 |
+| **`b64veryfast`** | **1,264** | **5,125** | **10,468** | **12,933** | **7,850** | **8,281** | **12,441** |
+| **`b64veryfast`** (unchecked) | **1,288** | **5,449** | **11,591** | **14,437** | **8,352** | **8,547** | **13,705** |
 
-At the largest measured payload, `b64veryfast` measures `24372 MiB/s` encode
-and `12515 MiB/s` checked decode. `decode64_trusted/1` measures `13875 MiB/s`,
+At the largest measured payload, `b64veryfast` measures `24233 MiB/s` encode
+and `12441 MiB/s` checked decode. `decode64_unchecked/1` measures `13705 MiB/s`,
 about 1.1x faster than checked decode at that size.
 
 The `_url` variants follow the same performance profile as the standard
@@ -90,21 +96,22 @@ summary CSV files.
 All functions accept and return binaries. Non-binary input raises `badarg`.
 Checked decode rejects malformed Base64 or Base64url input by raising
 `badarg`; functions do not return `{ok, Binary}` or `{error, Reason}` tuples.
-Trusted decode is for known-good input only.
+Unchecked decode is for known-good input only.
 
 ```erlang
 b64veryfast:encode64(Bin).         % standard padded Base64
 b64veryfast:decode64(Bin).         % standard Base64 decode
-b64veryfast:decode64_trusted(Bin). % trusted standard Base64 decode
+b64veryfast:decode64_unchecked(Bin). % unchecked standard Base64 decode
 b64veryfast:encode64_url(Bin).     % URL-safe Base64 without padding
 b64veryfast:decode64_url(Bin).     % URL-safe Base64 decode
-b64veryfast:decode64_url_trusted(Bin). % trusted URL-safe Base64 decode
+b64veryfast:decode64_url_unchecked(Bin). % unchecked URL-safe Base64 decode
 ```
 
-Trusted decode is not a validator. Use it only for Base64 produced by code you
+Unchecked decode is not a validator. Use it only for Base64 produced by code you
 trust, or for input that has already been validated elsewhere. Malformed input
-is not a memory-safety issue for the NIF, but the decoded bytes are unspecified
-and some malformed tails may still raise `badarg`.
+has garbage-in, garbage-out semantics: it may decode to unspecified bytes, and
+some malformed tails may still raise `badarg`. This is not a memory-safety issue
+for the NIF.
 
 Example:
 
@@ -161,6 +168,7 @@ environment variable:
 | `B64_VERYFAST_SSE42_CFLAGS` | x86 SSE4.2 engine flags |
 | `B64_VERYFAST_SSE41_CFLAGS` | x86 SSE4.1 engine flags |
 | `B64_VERYFAST_SSSE3_CFLAGS` | x86 SSSE3 engine flags |
+| `B64_VERYFAST_DIRTY_THRESHOLD` | byte threshold for dirty CPU scheduler dispatch |
 | `B64_VERYFAST_CFLAGS` | additional common C compiler flags |
 | `B64_VERYFAST_LDFLAGS` | additional shared-library linker flags |
 
@@ -176,6 +184,7 @@ Examples:
 ```sh
 B64_VERYFAST_NEON64_CFLAGS="-mcpu=native" rebar3 compile
 B64_VERYFAST_AVX2_CFLAGS="-mavx2" rebar3 compile
+B64_VERYFAST_DIRTY_THRESHOLD=1048576 rebar3 compile
 B64_VERYFAST_CFLAGS="-O3 -DNDEBUG" rebar3 compile
 ```
 
@@ -212,16 +221,19 @@ The NIF boundary is intentionally small:
 This means the hot path avoids avoidable copies:
 
 - The input is read from Erlang-owned binary memory and is never mutated.
-- The output is a freshly allocated Erlang binary, so C writes only into memory
-  it has just received for that purpose.
+- The output is a freshly allocated Erlang binary, so C writes only into memory it has just received for that purpose.
 - There is no Erlang-level post-processing pass for URL-safe output.
 
-Large calls are scheduled on dirty CPU schedulers at 256 KiB and above. Small
-calls run on normal schedulers to avoid dirty scheduler overhead. This threshold
-is deliberately conservative: large binary work should not block normal BEAM
-schedulers, while tiny binary work should stay cheap. Dirty NIFs still consume
-dirty CPU schedulers and memory bandwidth, so high-concurrency large-payload
-workloads should be capacity-tested under realistic load.
+Large calls are scheduled on dirty CPU schedulers at 2 MiB and above by
+default. Small calls run on normal schedulers to avoid dirty scheduler overhead.
+This threshold follows Erlang/OTP's practical rule that ordinary NIF calls
+should complete in about 1 ms or less. On the benchmark host, even a generic
+non-NEON build decoded 1 MiB in roughly 234 us, so 2 MiB leaves headroom while
+avoiding the throughput notch caused by moving medium-size payloads to dirty
+schedulers too early. Dirty NIFs still consume dirty CPU schedulers and memory
+bandwidth, so high-concurrency large-payload workloads should be capacity-tested
+under realistic load. Override the cutoff with `B64_VERYFAST_DIRTY_THRESHOLD`
+when a target host needs a more conservative or more aggressive pivot.
 
 The vendored backend carries URL-safe and no-padding flags used by the `_url`
 functions. Decode functions accept padded or unpadded input for their
@@ -233,10 +245,10 @@ Decoding does not ignore whitespace.
 | `encode64/1`, `decode64/1` | Standard `+` and `/` | Emits `=` | Accepts padded or unpadded | Rejected |
 | `encode64_url/1`, `decode64_url/1` | URL-safe `-` and `_` | Omits `=` | Accepts padded or unpadded | Rejected |
 
-The trusted decode functions use the same memory discipline as checked decode.
+The unchecked decode functions use the same memory discipline as checked decode.
 They read the inspected Erlang binary, allocate one new Erlang output binary,
 and write only into that output. The difference is the backend flag:
-`decode64_trusted/1` and `decode64_url_trusted/1` skip per-block alphabet
+`decode64_unchecked/1` and `decode64_url_unchecked/1` skip per-block alphabet
 classification in the SIMD and scalar hot loops. Use them only when another
 layer has already guaranteed that the input is valid Base64 or Base64url.
 

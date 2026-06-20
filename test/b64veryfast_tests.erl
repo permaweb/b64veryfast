@@ -17,18 +17,18 @@ bad_decode_test() ->
     ?assertException(error, badarg, b64veryfast:decode64( foo   )),
     ?assertException(error, badarg, b64veryfast:decode64( "foo" )),
     ?assertException(error, badarg, b64veryfast:decode64( {foo} )),
-    ?assertException(error, badarg, b64veryfast:decode64_trusted( 42    )),
-    ?assertException(error, badarg, b64veryfast:decode64_trusted( foo   )),
-    ?assertException(error, badarg, b64veryfast:decode64_trusted( "foo" )),
-    ?assertException(error, badarg, b64veryfast:decode64_trusted( {foo} )),
+    ?assertException(error, badarg, b64veryfast:decode64_unchecked( 42    )),
+    ?assertException(error, badarg, b64veryfast:decode64_unchecked( foo   )),
+    ?assertException(error, badarg, b64veryfast:decode64_unchecked( "foo" )),
+    ?assertException(error, badarg, b64veryfast:decode64_unchecked( {foo} )),
     ?assertException(error, badarg, b64veryfast:decode64_url( 42    )),
     ?assertException(error, badarg, b64veryfast:decode64_url( foo   )),
     ?assertException(error, badarg, b64veryfast:decode64_url( "foo" )),
     ?assertException(error, badarg, b64veryfast:decode64_url( {foo} )),
-    ?assertException(error, badarg, b64veryfast:decode64_url_trusted( 42    )),
-    ?assertException(error, badarg, b64veryfast:decode64_url_trusted( foo   )),
-    ?assertException(error, badarg, b64veryfast:decode64_url_trusted( "foo" )),
-    ?assertException(error, badarg, b64veryfast:decode64_url_trusted( {foo} )).
+    ?assertException(error, badarg, b64veryfast:decode64_url_unchecked( 42    )),
+    ?assertException(error, badarg, b64veryfast:decode64_url_unchecked( foo   )),
+    ?assertException(error, badarg, b64veryfast:decode64_url_unchecked( "foo" )),
+    ?assertException(error, badarg, b64veryfast:decode64_url_unchecked( {foo} )).
 
 encode_test() ->
     ?assert(b64veryfast:encode64(<< "zany" >>) =:= << "emFueQ==" >>),
@@ -44,12 +44,12 @@ decode_test() ->
     ?assert(b64veryfast:decode64(<< "eg=="     >>) =:= << "z"    >>),
     ?assert(b64veryfast:decode64(<<            >>) =:= <<        >>).
 
-decode_trusted_test() ->
-    ?assert(b64veryfast:decode64_trusted(<< "emFueQ==" >>) =:= << "zany" >>),
-    ?assert(b64veryfast:decode64_trusted(<< "emFu"     >>) =:= << "zan"  >>),
-    ?assert(b64veryfast:decode64_trusted(<< "emE="     >>) =:= << "za"   >>),
-    ?assert(b64veryfast:decode64_trusted(<< "eg=="     >>) =:= << "z"    >>),
-    ?assert(b64veryfast:decode64_trusted(<<            >>) =:= <<        >>).
+decode_unchecked_test() ->
+    ?assert(b64veryfast:decode64_unchecked(<< "emFueQ==" >>) =:= << "zany" >>),
+    ?assert(b64veryfast:decode64_unchecked(<< "emFu"     >>) =:= << "zan"  >>),
+    ?assert(b64veryfast:decode64_unchecked(<< "emE="     >>) =:= << "za"   >>),
+    ?assert(b64veryfast:decode64_unchecked(<< "eg=="     >>) =:= << "z"    >>),
+    ?assert(b64veryfast:decode64_unchecked(<<            >>) =:= <<        >>).
 
 encode_url_test() ->
     ?assert(b64veryfast:encode64_url(<< "zany" >>) =:= << "emFueQ" >>),
@@ -70,15 +70,15 @@ decode_url_test() ->
     ?assert(b64veryfast:decode64_url(<< "-_8"    >>) =:= << 251, 255 >>),
     ?assert(b64veryfast:decode64_url(<<          >>) =:= <<        >>).
 
-decode_url_trusted_test() ->
-    ?assert(b64veryfast:decode64_url_trusted(<< "emFueQ" >>) =:= << "zany" >>),
-    ?assert(b64veryfast:decode64_url_trusted(<< "emFu"   >>) =:= << "zan"  >>),
-    ?assert(b64veryfast:decode64_url_trusted(<< "emE"    >>) =:= << "za"   >>),
-    ?assert(b64veryfast:decode64_url_trusted(<< "eg"     >>) =:= << "z"    >>),
-    ?assert(b64veryfast:decode64_url_trusted(<< "-w"     >>) =:= << 251    >>),
-    ?assert(b64veryfast:decode64_url_trusted(<< "-w=="   >>) =:= << 251    >>),
-    ?assert(b64veryfast:decode64_url_trusted(<< "-_8"    >>) =:= << 251, 255 >>),
-    ?assert(b64veryfast:decode64_url_trusted(<<          >>) =:= <<        >>).
+decode_url_unchecked_test() ->
+    ?assert(b64veryfast:decode64_url_unchecked(<< "emFueQ" >>) =:= << "zany" >>),
+    ?assert(b64veryfast:decode64_url_unchecked(<< "emFu"   >>) =:= << "zan"  >>),
+    ?assert(b64veryfast:decode64_url_unchecked(<< "emE"    >>) =:= << "za"   >>),
+    ?assert(b64veryfast:decode64_url_unchecked(<< "eg"     >>) =:= << "z"    >>),
+    ?assert(b64veryfast:decode64_url_unchecked(<< "-w"     >>) =:= << 251    >>),
+    ?assert(b64veryfast:decode64_url_unchecked(<< "-w=="   >>) =:= << 251    >>),
+    ?assert(b64veryfast:decode64_url_unchecked(<< "-_8"    >>) =:= << 251, 255 >>),
+    ?assert(b64veryfast:decode64_url_unchecked(<<          >>) =:= <<        >>).
 
 % TODO: skip whitespace
 %padded_decode_test() ->
@@ -114,14 +114,14 @@ backtoback_decode_test() ->
 %    Enc = b64veryfast:encode64(Data),
     Enc = base64:encode(Data),
     ?assert(base64:decode(Enc) =:= b64veryfast:decode64(Enc)),
-    ?assert(Data =:= b64veryfast:decode64_trusted(Enc)).
+    ?assert(Data =:= b64veryfast:decode64_unchecked(Enc)).
 
 backtoback_url_test() ->
     Data = binary:copy(<<"0123456789">>, 100000), % 1 MiB of data
     Enc = url_encode_ref(Data),
     ?assert(Enc =:= b64veryfast:encode64_url(Data)),
     ?assert(Data =:= b64veryfast:decode64_url(Enc)),
-    ?assert(Data =:= b64veryfast:decode64_url_trusted(Enc)).
+    ?assert(Data =:= b64veryfast:decode64_url_unchecked(Enc)).
 
 url_encode_ref(Data) ->
     NoPad = binary:replace(base64:encode(Data), <<"=">>, <<>>, [global]),

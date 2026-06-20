@@ -2,10 +2,10 @@
 -export([
     encode64/1,
     decode64/1,
-    decode64_trusted/1,
+    decode64_unchecked/1,
     encode64_url/1,
     decode64_url/1,
-    decode64_url_trusted/1
+    decode64_url_unchecked/1
 ]).
 -on_load(init/0).
 
@@ -28,7 +28,7 @@ encode64(Bin) when is_binary(Bin) ->
 decode64(Bin) when is_binary(Bin) ->
     not_loaded(?LINE).
 
-decode64_trusted(Bin) when is_binary(Bin) ->
+decode64_unchecked(Bin) when is_binary(Bin) ->
     not_loaded(?LINE).
 
 encode64_url(Bin) when is_binary(Bin) ->
@@ -37,7 +37,7 @@ encode64_url(Bin) when is_binary(Bin) ->
 decode64_url(Bin) when is_binary(Bin) ->
     not_loaded(?LINE).
 
-decode64_url_trusted(Bin) when is_binary(Bin) ->
+decode64_url_unchecked(Bin) when is_binary(Bin) ->
     not_loaded(?LINE).
 
 % Since we used init/0 in our -on_load() preprocessor directive, this

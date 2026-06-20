@@ -83,6 +83,14 @@ else
 SSSE3_CFLAGS := $(AUTO_SSSE3_CFLAGS)
 endif
 
+DEFAULT_DIRTY_THRESHOLD := 2097152U
+ifneq ($(origin B64_VERYFAST_DIRTY_THRESHOLD), undefined)
+DIRTY_THRESHOLD := $(B64_VERYFAST_DIRTY_THRESHOLD)
+else
+DIRTY_THRESHOLD := $(DEFAULT_DIRTY_THRESHOLD)
+endif
+DIRTY_THRESHOLD_CFLAGS := -DB64VERYFAST_DIRTY_THRESHOLD=$(DIRTY_THRESHOLD)
+
 HAVE_AVX512 := $(if $(strip $(AVX512_CFLAGS)),1,0)
 HAVE_AVX2 := $(if $(strip $(AVX2_CFLAGS)),1,0)
 HAVE_NEON32 := $(if $(strip $(NEON32_CFLAGS)),1,0)
@@ -94,7 +102,7 @@ HAVE_AVX := $(if $(strip $(AVX_CFLAGS)),1,0)
 
 ERL_INCLUDE ?= $(shell $(ERL) -noshell -eval 'io:format("~s", [filename:join([code:root_dir(), "erts-" ++ erlang:system_info(version), "include"])]), halt().')
 
-CFLAGS += -std=c99 -O3 -Wall -Wextra -pedantic -DBASE64_STATIC_DEFINE -fPIC $(B64_VERYFAST_CFLAGS)
+CFLAGS += -std=c99 -O3 -Wall -Wextra -pedantic -DBASE64_STATIC_DEFINE -fPIC $(DIRTY_THRESHOLD_CFLAGS) $(B64_VERYFAST_CFLAGS)
 NIF_CFLAGS += -Ic_src/aklomp/include -Ic_src/aklomp/lib -I$(ERL_INCLUDE)
 
 ifeq ($(HOST_OS),Darwin)
@@ -133,6 +141,7 @@ print-config:
 	@echo "SSE42_CFLAGS=$(SSE42_CFLAGS)"
 	@echo "SSE41_CFLAGS=$(SSE41_CFLAGS)"
 	@echo "SSSE3_CFLAGS=$(SSSE3_CFLAGS)"
+	@echo "DIRTY_THRESHOLD=$(DIRTY_THRESHOLD)"
 
 priv/b64veryfast.so: c_src/b64veryfast.o $(AKLOMP_OBJS)
 	mkdir -p priv

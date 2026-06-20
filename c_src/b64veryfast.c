@@ -4,7 +4,9 @@
 #include "erl_nif.h"
 #include "aklomp/include/libbase64.h"
 
-#define B64VERYFAST_DIRTY_THRESHOLD (256U * 1024U)
+#ifndef B64VERYFAST_DIRTY_THRESHOLD
+#define B64VERYFAST_DIRTY_THRESHOLD (2U * 1024U * 1024U)
+#endif
 
 typedef ERL_NIF_TERM (*b64veryfast_nif_fn)(ErlNifEnv*, int, const ERL_NIF_TERM[]);
 
@@ -106,7 +108,7 @@ decode64_do(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 static ERL_NIF_TERM
-decode64_trusted_do(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+decode64_unchecked_do(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
     return decode_do(env, argc, argv, BASE64_TRUSTED);
 }
@@ -124,7 +126,7 @@ decode64_url_do(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 static ERL_NIF_TERM
-decode64_url_trusted_do(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+decode64_url_unchecked_do(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
     return decode_do(env, argc, argv, BASE64_URL_NOPAD | BASE64_TRUSTED);
 }
@@ -158,9 +160,9 @@ decode64(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 static ERL_NIF_TERM
-decode64_trusted(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+decode64_unchecked(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
-    return schedule_if_large(env, argc, argv, decode64_trusted_do, "decode64_trusted_dirty");
+    return schedule_if_large(env, argc, argv, decode64_unchecked_do, "decode64_unchecked_dirty");
 }
 
 static ERL_NIF_TERM
@@ -176,26 +178,26 @@ decode64_url(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 static ERL_NIF_TERM
-decode64_url_trusted(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+decode64_url_unchecked(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
-    return schedule_if_large(env, argc, argv, decode64_url_trusted_do, "decode64_url_trusted_dirty");
+    return schedule_if_large(env, argc, argv, decode64_url_unchecked_do, "decode64_url_unchecked_dirty");
 }
 #else
 #define encode64 encode64_do
 #define decode64 decode64_do
-#define decode64_trusted decode64_trusted_do
+#define decode64_unchecked decode64_unchecked_do
 #define encode64_url encode64_url_do
 #define decode64_url decode64_url_do
-#define decode64_url_trusted decode64_url_trusted_do
+#define decode64_url_unchecked decode64_url_unchecked_do
 #endif
 
 static ErlNifFunc funcs[] = {
     {"encode64", 1, encode64, 0},
     {"decode64", 1, decode64, 0},
-    {"decode64_trusted", 1, decode64_trusted, 0},
+    {"decode64_unchecked", 1, decode64_unchecked, 0},
     {"encode64_url", 1, encode64_url, 0},
     {"decode64_url", 1, decode64_url, 0},
-    {"decode64_url_trusted", 1, decode64_url_trusted, 0}
+    {"decode64_url_unchecked", 1, decode64_url_unchecked, 0}
 };
 
 ERL_NIF_INIT(b64veryfast, funcs, NULL, NULL, NULL, NULL)

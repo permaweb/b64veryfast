@@ -52,12 +52,7 @@ inputs() ->
         5025618, 5418887, 5842931, 6300158, 6793164, 7324749, 7897932, 8388608, 9182368, 9900915, 10675691, 11511095,
         12411872, 13383138, 14430407, 15559629, 16777216
     ],
-    [{Size, iterations(Size), crypto:strong_rand_bytes(Size)} || Size <- Sizes].
-
-iterations(Size) ->
-    TargetBytes = 96 * 1024 * 1024,
-    Iters0 = (TargetBytes + Size - 1) div Size,
-    erlang:max(8, erlang:min(500000, Iters0)).
+    [{Size, crypto:strong_rand_bytes(Size)} || Size <- Sizes].
 
 definitions() ->
     Std = [
@@ -81,8 +76,8 @@ definitions() ->
             fun(Bin, _StdEnc, _UrlEnc) -> fun() -> b64veryfast:encode64(Bin) end end},
         {"standard", "b64veryfast", "decode",
             fun(_Bin, StdEnc, _UrlEnc) -> fun() -> b64veryfast:decode64(StdEnc) end end},
-        {"standard", "b64veryfast-trusted", "decode",
-            fun(_Bin, StdEnc, _UrlEnc) -> fun() -> b64veryfast:decode64_trusted(StdEnc) end end}
+        {"standard", "b64veryfast-unchecked", "decode",
+            fun(_Bin, StdEnc, _UrlEnc) -> fun() -> b64veryfast:decode64_unchecked(StdEnc) end end}
     ],
     Url = [
         {"base64url", "otp-base64-url", "encode",
@@ -109,8 +104,8 @@ definitions() ->
             fun(Bin, _StdEnc, _UrlEnc) -> fun() -> b64veryfast:encode64_url(Bin) end end},
         {"base64url", "b64veryfast-url", "decode",
             fun(_Bin, _StdEnc, UrlEnc) -> fun() -> b64veryfast:decode64_url(UrlEnc) end end},
-        {"base64url", "b64veryfast-url-trusted", "decode",
-            fun(_Bin, _StdEnc, UrlEnc) -> fun() -> b64veryfast:decode64_url_trusted(UrlEnc) end end}
+        {"base64url", "b64veryfast-url-unchecked", "decode",
+            fun(_Bin, _StdEnc, UrlEnc) -> fun() -> b64veryfast:decode64_url_unchecked(UrlEnc) end end}
     ],
     Std ++ StdB64Fast ++ StdVeryFast ++ Url ++ UrlB64Rs ++ UrlVeryFast.
 
@@ -120,11 +115,11 @@ has_module(Mod) ->
         _ -> false
     end.
 
-benchmark(Io, {Size, Iters, Bin}, {Family, Library, Operation, MakeFun}) ->
+benchmark(Io, {Size, Bin}, {Family, Library, Operation, MakeFun}) ->
     StdEnc = base64:encode(Bin),
     UrlEnc = base64:encode(Bin, #{mode => urlsafe, padding => false}),
     Fun = MakeFun(Bin, StdEnc, UrlEnc),
-    warmup(Fun, erlang:min(Iters, 5000)),
+    Iters = iterations(Fun, Size),
     lists:foreach(fun(Run) ->
         erlang:garbage_collect(),
         {Elapsed, _LastSize} = timer:tc(fun() ->
@@ -137,9 +132,17 @@ benchmark(Io, {Size, Iters, Bin}, {Family, Library, Operation, MakeFun}) ->
         ]))
     end, lists:seq(1, 5)).
 
-warmup(Fun, Iters) ->
-    _ = loop(Fun, Iters, <<>>),
-    ok.
+iterations(Fun, Size) ->
+    WarmIters = byte_iterations(Size, 16 * 1024 * 1024),
+    _ = loop(Fun, WarmIters, <<>>),
+    CalIters = byte_iterations(Size, 32 * 1024 * 1024),
+    {Elapsed, _} = timer:tc(fun() -> loop(Fun, CalIters, <<>>) end),
+    TargetUs = 32000,
+    Iters0 = (CalIters * TargetUs + erlang:max(Elapsed, 1) - 1) div erlang:max(Elapsed, 1),
+    erlang:max(8, erlang:min(500000, Iters0)).
+
+byte_iterations(Size, TargetBytes) ->
+    erlang:max(1, erlang:min(500000, (TargetBytes + Size - 1) div Size)).
 
 loop(_Fun, 0, Last) ->
     Last;
