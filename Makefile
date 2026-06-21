@@ -5,13 +5,26 @@ ERLC ?= erlc
 HOST_ARCH := $(shell uname -m)
 HOST_OS := $(shell uname -s)
 
+# Architecture the build targets. Defaults to the build host; set TARGET_ARCH
+# (on the command line or in the environment) to cross-compile the engine
+# selection for another architecture, e.g. `TARGET_ARCH=aarch64'.
+TARGET_ARCH ?= $(HOST_ARCH)
+
 cc-option = $(shell printf 'int main(void){return 0;}\n' | $(CC) $(1) -x c -c -o /dev/null - >/dev/null 2>&1 && printf '%s' '$(1)')
+
+# `-mcpu=native'/`-march=native' only apply when the build host is also the run
+# host. When cross-compiling (TARGET_ARCH != HOST_ARCH) leave the native tuning
+# empty so each engine falls back to its portable baseline flag below.
+ifeq ($(TARGET_ARCH),$(HOST_ARCH))
 native-flag = $(strip $(call cc-option,-mcpu=native))
 ifeq ($(native-flag),)
 native-flag = $(strip $(call cc-option,-march=native))
 endif
+else
+native-flag =
+endif
 
-ifeq ($(filter arm64 aarch64,$(HOST_ARCH)),)
+ifeq ($(filter arm64 aarch64,$(TARGET_ARCH)),)
 AUTO_NEON64_CFLAGS :=
 else
 AUTO_NEON64_CFLAGS := $(native-flag)
@@ -20,13 +33,13 @@ AUTO_NEON64_CFLAGS := $(strip $(call cc-option,-march=armv8-a))
 endif
 endif
 
-ifeq ($(filter armv7% armv6% arm,$(HOST_ARCH)),)
+ifeq ($(filter armv7% armv6% arm,$(TARGET_ARCH)),)
 AUTO_NEON32_CFLAGS :=
 else
 AUTO_NEON32_CFLAGS := $(strip $(call cc-option,-mfpu=neon))
 endif
 
-ifneq ($(filter x86_64 amd64 i386 i686,$(HOST_ARCH)),)
+ifneq ($(filter x86_64 amd64 i386 i686,$(TARGET_ARCH)),)
 AUTO_AVX512_CFLAGS := $(strip $(call cc-option,-mavx512vl -mavx512vbmi))
 AUTO_AVX2_CFLAGS := $(strip $(call cc-option,-mavx2))
 AUTO_AVX_CFLAGS := $(strip $(call cc-option,-mavx))
@@ -133,6 +146,7 @@ all: priv/b64veryfast.so
 print-config:
 	@echo "HOST_ARCH=$(HOST_ARCH)"
 	@echo "HOST_OS=$(HOST_OS)"
+	@echo "TARGET_ARCH=$(TARGET_ARCH)"
 	@echo "NEON64_CFLAGS=$(NEON64_CFLAGS)"
 	@echo "NEON32_CFLAGS=$(NEON32_CFLAGS)"
 	@echo "AVX512_CFLAGS=$(AVX512_CFLAGS)"
