@@ -197,6 +197,27 @@ On x86, `aklomp/base64` can compile multiple engines and choose among them at
 runtime. On ARM, the build enables the relevant NEON engine at compile time when
 the compiler accepts the selected flags.
 
+### Cross-compilation
+
+Engine selection defaults to the build host's architecture (`uname -m`). To
+build for a different target — for example an Android `arm64-v8a` image built on
+an x86-64 host — point `CC` at the cross-compiler and set `TARGET_ARCH` to the
+target architecture:
+
+```sh
+CC=aarch64-linux-android21-clang TARGET_ARCH=aarch64 rebar3 compile
+```
+
+`TARGET_ARCH` drives engine selection alone, so this enables the NEON64 engine
+and skips the x86 engines with no per-engine overrides. Because `-mcpu=native`
+and `-march=native` are meaningless across hosts, native tuning is suppressed
+automatically when `TARGET_ARCH` differs from the build host, and each engine
+falls back to its portable baseline flag (`-march=armv8-a` for arm64). Override
+the engine flags with the `B64_VERYFAST_*` variables above if the target needs a
+specific micro-architecture, and set `ERL_INCLUDE` to the target runtime's
+`erl_nif.h` directory. A non-Linux build host targeting Linux or Android should
+also set `SO_LDFLAGS=-shared` so the output is an ELF shared object.
+
 The generated `c_src/aklomp/lib/config.h` records which engines were enabled
 for a build. It is a build artifact and is removed by `make clean`.
 
