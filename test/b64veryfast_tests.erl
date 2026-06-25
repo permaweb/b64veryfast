@@ -80,6 +80,14 @@ decode_url_unchecked_test() ->
     ?assert(b64veryfast:decode64_url_unchecked(<< "-_8"    >>) =:= << 251, 255 >>),
     ?assert(b64veryfast:decode64_url_unchecked(<<          >>) =:= <<        >>).
 
+decode_url_unchecked_x86_vector_test() ->
+    Enc = <<"r9XYa4rlR_uQMFyhEy_B-WHgX7XNIwe7MWiu-Yu2LPhhCQ">>,
+    Data =
+        <<175,213,216,107,138,229,71,251,144,48,92,161,19,47,193,249,
+          97,224,95,181,205,35,7,187,49,104,174,249,139,182,44,248,97,9>>,
+    ?assertEqual(Data, b64veryfast:decode64_url(Enc)),
+    ?assertEqual(Data, b64veryfast:decode64_url_unchecked(Enc)).
+
 % TODO: skip whitespace
 %padded_decode_test() ->
 %    ?assert(b64veryfast:decode64(<< " emFu" >>) =:= << "zan" >>),
