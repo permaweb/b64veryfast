@@ -66,7 +66,7 @@
 // 1111 0x10 andlut     0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10 0x10
 
 static BASE64_FORCE_INLINE int
-dec_loop_ssse3_inner (const uint8_t **s, uint8_t **o, size_t *rounds, int trusted)
+dec_loop_ssse3_inner (const uint8_t **s, uint8_t **o, size_t *rounds, int trusted, int url_safe)
 {
 	const __m128i lut_lo = _mm_setr_epi8(
 		0x15, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
@@ -84,6 +84,18 @@ dec_loop_ssse3_inner (const uint8_t **s, uint8_t **o, size_t *rounds, int truste
 
 	// Load input:
 	__m128i str = _mm_loadu_si128((__m128i *) *s);
+
+	if (url_safe) {
+		const __m128i mask_2D = _mm_set1_epi8(0x2D);
+		const __m128i mask_5F = _mm_set1_epi8(0x5F);
+		const __m128i dash_xor = _mm_and_si128(
+			_mm_cmpeq_epi8(str, mask_2D),
+			_mm_set1_epi8(0x06));
+		const __m128i underscore_xor = _mm_and_si128(
+			_mm_cmpeq_epi8(str, mask_5F),
+			_mm_set1_epi8(0x70));
+		str = _mm_xor_si128(str, _mm_or_si128(dash_xor, underscore_xor));
+	}
 
 	// Table lookups:
 	const __m128i hi_nibbles = _mm_and_si128(_mm_srli_epi32(str, 4), mask_2F);
@@ -130,41 +142,42 @@ dec_loop_ssse3 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen, int 
 	// end-of-string markers.)
 	size_t rounds = (*slen - 8) / 16;
 	const int trusted = flags & BASE64_TRUSTED;
+	const int url_safe = flags & BASE64_URL_SAFE;
 
 	*slen -= rounds * 16;	// 16 bytes consumed per round
 	*olen += rounds * 12;	// 12 bytes produced per round
 
 	do {
 		if (rounds >= 8) {
-			if (dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
-			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
-			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
-			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
-			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
-			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
-			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
-			    dec_loop_ssse3_inner(s, o, &rounds, trusted)) {
+			if (dec_loop_ssse3_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted, url_safe)) {
 				continue;
 			}
 			break;
 		}
 		if (rounds >= 4) {
-			if (dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
-			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
-			    dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
-			    dec_loop_ssse3_inner(s, o, &rounds, trusted)) {
+			if (dec_loop_ssse3_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted, url_safe)) {
 				continue;
 			}
 			break;
 		}
 		if (rounds >= 2) {
-			if (dec_loop_ssse3_inner(s, o, &rounds, trusted) &&
-			    dec_loop_ssse3_inner(s, o, &rounds, trusted)) {
+			if (dec_loop_ssse3_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_ssse3_inner(s, o, &rounds, trusted, url_safe)) {
 				continue;
 			}
 			break;
 		}
-		dec_loop_ssse3_inner(s, o, &rounds, trusted);
+		dec_loop_ssse3_inner(s, o, &rounds, trusted, url_safe);
 		break;
 
 	} while (rounds > 0);

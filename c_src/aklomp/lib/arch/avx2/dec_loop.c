@@ -1,5 +1,5 @@
 static BASE64_FORCE_INLINE int
-dec_loop_avx2_inner (const uint8_t **s, uint8_t **o, size_t *rounds, int trusted)
+dec_loop_avx2_inner (const uint8_t **s, uint8_t **o, size_t *rounds, int trusted, int url_safe)
 {
 	const __m256i lut_lo = _mm256_setr_epi8(
 		0x15, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
@@ -23,6 +23,18 @@ dec_loop_avx2_inner (const uint8_t **s, uint8_t **o, size_t *rounds, int trusted
 
 	// Load input:
 	__m256i str = _mm256_loadu_si256((__m256i *) *s);
+
+	if (url_safe) {
+		const __m256i mask_2D = _mm256_set1_epi8(0x2D);
+		const __m256i mask_5F = _mm256_set1_epi8(0x5F);
+		const __m256i dash_xor = _mm256_and_si256(
+			_mm256_cmpeq_epi8(str, mask_2D),
+			_mm256_set1_epi8(0x06));
+		const __m256i underscore_xor = _mm256_and_si256(
+			_mm256_cmpeq_epi8(str, mask_5F),
+			_mm256_set1_epi8(0x70));
+		str = _mm256_xor_si256(str, _mm256_or_si256(dash_xor, underscore_xor));
+	}
 
 	// See the SSSE3 decoder for an explanation of the algorithm.
 	const __m256i hi_nibbles = _mm256_and_si256(_mm256_srli_epi32(str, 4), mask_2F);
@@ -66,41 +78,42 @@ dec_loop_avx2 (const uint8_t **s, size_t *slen, uint8_t **o, size_t *olen, int f
 	// two end-of-string markers.)
 	size_t rounds = (*slen - 13) / 32;
 	const int trusted = flags & BASE64_TRUSTED;
+	const int url_safe = flags & BASE64_URL_SAFE;
 
 	*slen -= rounds * 32;	// 32 bytes consumed per round
 	*olen += rounds * 24;	// 24 bytes produced per round
 
 	do {
 		if (rounds >= 8) {
-			if (dec_loop_avx2_inner(s, o, &rounds, trusted) &&
-			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
-			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
-			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
-			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
-			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
-			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
-			    dec_loop_avx2_inner(s, o, &rounds, trusted)) {
+			if (dec_loop_avx2_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted, url_safe)) {
 				continue;
 			}
 			break;
 		}
 		if (rounds >= 4) {
-			if (dec_loop_avx2_inner(s, o, &rounds, trusted) &&
-			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
-			    dec_loop_avx2_inner(s, o, &rounds, trusted) &&
-			    dec_loop_avx2_inner(s, o, &rounds, trusted)) {
+			if (dec_loop_avx2_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted, url_safe)) {
 				continue;
 			}
 			break;
 		}
 		if (rounds >= 2) {
-			if (dec_loop_avx2_inner(s, o, &rounds, trusted) &&
-			    dec_loop_avx2_inner(s, o, &rounds, trusted)) {
+			if (dec_loop_avx2_inner(s, o, &rounds, trusted, url_safe) &&
+			    dec_loop_avx2_inner(s, o, &rounds, trusted, url_safe)) {
 				continue;
 			}
 			break;
 		}
-		dec_loop_avx2_inner(s, o, &rounds, trusted);
+		dec_loop_avx2_inner(s, o, &rounds, trusted, url_safe);
 		break;
 
 	} while (rounds > 0);
